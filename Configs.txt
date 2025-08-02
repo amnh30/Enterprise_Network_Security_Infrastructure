@@ -1,0 +1,628 @@
+basic Confg for Routers :
+R0:
+enable
+conf t
+hostname Router0
+no ip domain-lookup
+
+interface GigabitEthernet0/0/0
+ ip address 192.168.0.1 255.255.255.0
+ no shutdown
+
+interface Serial0/1/0
+ ip address 10.0.0.1 255.255.255.252
+ clock rate 64000
+ no shutdown
+
+router ospf 1
+ network 192.168.0.0 0.0.0.255 area 0
+ network 10.0.0.0 0.0.0.3 area 0
+
+=================================================================
+-----------------------------------------------------------------
+R1:
+
+enable
+conf t
+hostname Router1
+no ip domain-lookup
+
+interface Serial0/1/0
+ ip address 10.0.0.10 255.255.255.252
+ no shutdown
+
+interface Serial0/1/1
+ ip address 10.0.5.1 255.255.255.252
+ no shutdown
+
+interface Serial0/2/0
+ ip address 10.0.0.14 255.255.255.252
+ clock rate 64000
+ no shutdown
+
+interface Serial0/2/1
+ ip address 10.0.0.18 255.255.255.252
+ clock rate 64000
+ no shutdown
+
+router ospf 1
+ network 10.0.5.0 0.0.0.3 area 0
+ network 10.0.0.10 0.0.0.3 area 0
+ network 10.0.0.14 0.0.0.3 area 0
+ network 10.0.0.18 0.0.0.3 area 0
+
+=================================================================
+
+-----------------------------------------------------------------
+R2:
+
+enable
+conf t
+hostname Router2
+no ip domain-lookup
+
+interface Serial0/1/0
+ ip address 10.0.0.13 255.255.255.252
+ no shutdown
+
+interface GigabitEthernet0/0/0
+ ip address 192.168.2.1 255.255.255.0
+ no shutdown
+
+router ospf 1
+ network 10.0.0.12 0.0.0.3 area 0
+ network 192.168.2.0 0.0.0.255 area 0
+
+=================================================================
+
+VPN:
+
+crypto isakmp policy 10
+ encr aes
+ hash sha
+ authentication pre-share
+ group 2
+ lifetime 86400
+
+crypto isakmp key VPN123 address 10.0.0.29
+
+crypto ipsec transform-set VPN-SET esp-aes esp-sha-hmac
+
+crypto map VPN-MAP 10 ipsec-isakmp
+ set peer 10.0.0.29
+ set transform-set VPN-SET
+ match address 100
+
+interface Serial0/1/0
+ crypto map VPN-MAP
+
+access-list 100 permit ip 192.168.2.0 0.0.0.255 192.168.8.0 0.0.0.255
+
+-----------------------------------------------------------------
+R3:
+
+
+enable
+conf t
+hostname Router3
+no ip domain-lookup
+
+interface GigabitEthernet0/0/0
+ ip address 192.168.3.1 255.255.255.0
+ no shutdown
+
+interface GigabitEthernet0/0/1
+ ip address 192.168.10.1 255.255.255.0
+ no shutdown
+
+interface Serial0/1/0
+ ip address 10.0.2.2 255.255.255.252
+ clock rate 64000
+ no shutdown
+
+router ospf 1
+ network 192.168.3.0 0.0.0.255 area 0
+ network 192.168.10.0 0.0.0.255 area 0
+ network 10.0.2.0 0.0.0.3 area 0
+
+=================================================================
+NTP Server :
+enable
+configure terminal
+ntp server 192.168.10.21
+end
+write memory
+
+=================================================================
+Syslog Server:
+
+enable
+configure terminal
+logging 192.168.10.20
+logging trap debugging
+service timestamps log datetime msec
+end
+write memory
+=================================================================
+TACACS+ Server:
+
+! Set the hostname
+hostname Router3
+
+! Configure the TACACS+ server
+tacacs-server host 192.168.3.21 key cisco
+
+! Enable AAA
+aaa new-model
+
+! Define TACACS+ authentication with local fallback
+aaa authentication login default group tacacs+ local
+aaa authorization exec default group tacacs+ local
+aaa accounting exec default start-stop group tacacs+
+
+! Create local user (fallback or direct login)
+username cisco privilege 15 secret cisco
+
+! Apply AAA to VTY lines
+line vty 0 4
+ login authentication default
+ transport input ssh
+=================================================================
+
+
+enable
+configure terminal
+
+! Set hostname and domain (needed for SSH key generation)
+hostname Router3
+ip domain-name localdomain
+
+! Enable AAA
+aaa new-model
+
+! Define TACACS+ server (older syntax used in Packet Tracer)
+tacacs-server host 192.168.3.21 key cisco
+
+! Define RADIUS server
+radius-server host 192.168.3.20 
+key cisco
+
+! Define authentication using groups (TACACS+ -> RADIUS -> Local)
+aaa authentication login default group tacacs+ group radius local
+aaa authorization exec default group tacacs+ group radius local
+aaa accounting exec default start-stop group tacacs+
+
+! Create local user
+username cisco privilege 15 secret cisco
+
+! Enable SSH
+crypto key generate rsa
+yes
+1024
+ip ssh version 2
+
+! Apply AAA to VTY lines
+line vty 0 4
+ login authentication default
+ transport input ssh
+
+! Optional: apply to console
+line con 0
+ login authentication default
+
+end
+write memory
+
+
+
+
+
+
+
+-----------------------------------------------------------------
+R4:
+
+
+enable
+conf t
+hostname Router4
+no ip domain-lookup
+
+interface GigabitEthernet0/0/0
+ ip address 192.168.4.1 255.255.255.0
+ no shutdown
+
+interface GigabitEthernet0/0/1
+ ip address 192.168.5.1 255.255.255.0
+ no shutdown
+
+interface Serial0/1/0
+ ip address 10.0.0.17 255.255.255.252
+ no shutdown
+
+router ospf 1
+ network 192.168.4.0 0.0.0.255 area 0
+ network 192.168.5.0 0.0.0.255 area 0
+ network 10.0.0.16 0.0.0.3 area 0
+
+
+=================================================================
+
+ZPF:
+
+conf t
+
+! Step 1: Create Security Zones
+zone security INSIDE
+zone security DMZ
+zone security OUTSIDE
+
+! Step 2: Assign Interfaces to Zones
+interface GigabitEthernet0/0/1
+ description INSIDE Network - PC2, PC3
+ ip address 192.168.5.1 255.255.255.0
+ zone-member security INSIDE
+ no shutdown
+
+interface GigabitEthernet0/0/0
+ description DMZ Network - Web Server
+ ip address 192.168.4.1 255.255.255.0
+ zone-member security DMZ
+ no shutdown
+
+interface Serial0/1/0
+ description WAN/OUTSIDE - Connected to Router1
+ ip address 10.0.0.17 255.255.255.252
+ encapsulation ppp
+ zone-member security OUTSIDE
+ no shutdown
+
+! Step 3: Class-Maps for Matching Traffic
+class-map type inspect match-any CM_INSIDE_TO_DMZ
+ match protocol http
+ match protocol https
+ match protocol dns
+ match protocol icmp
+
+class-map type inspect match-any CM_INSIDE_TO_OUTSIDE
+ match protocol http
+ match protocol https
+ match protocol dns
+ match protocol icmp
+
+class-map type inspect match-any CM_DMZ_TO_INSIDE
+ match protocol icmp
+ match protocol http
+ match protocol https
+
+class-map type inspect match-any CM_DMZ_TO_OUTSIDE
+ match protocol http
+ match protocol https
+ match protocol dns
+
+! Step 4: Policy-Maps for Actions
+policy-map type inspect PM_INSIDE_TO_DMZ
+ class type inspect CM_INSIDE_TO_DMZ
+  inspect
+ class class-default
+  drop
+
+policy-map type inspect PM_INSIDE_TO_OUTSIDE
+ class type inspect CM_INSIDE_TO_OUTSIDE
+  inspect
+ class class-default
+  drop
+
+policy-map type inspect PM_DMZ_TO_INSIDE
+ class type inspect CM_DMZ_TO_INSIDE
+  drop
+ class class-default
+  drop
+
+policy-map type inspect PM_DMZ_TO_OUTSIDE
+ class type inspect CM_DMZ_TO_OUTSIDE
+  inspect
+ class class-default
+  drop
+
+! Step 5: Zone-Pairs to Apply Policies
+zone-pair security ZP_INSIDE_TO_DMZ source INSIDE destination DMZ
+ service-policy type inspect PM_INSIDE_TO_DMZ
+
+zone-pair security ZP_INSIDE_TO_OUTSIDE source INSIDE destination OUTSIDE
+ service-policy type inspect PM_INSIDE_TO_OUTSIDE
+
+zone-pair security ZP_DMZ_TO_INSIDE source DMZ destination INSIDE
+ service-policy type inspect PM_DMZ_TO_INSIDE
+
+zone-pair security ZP_DMZ_TO_OUTSIDE source DMZ destination OUTSIDE
+ service-policy type inspect PM_DMZ_TO_OUTSIDE
+
+
+-----------------------------------------------------------------
+R5:
+
+enable
+conf t
+hostname Router5
+no ip domain-lookup
+
+interface GigabitEthernet0/0/0
+ ip address 192.168.6.1 255.255.255.0
+ no shutdown
+
+interface Serial0/1/0
+ ip address 10.0.0.26 255.255.255.252
+ clock rate 64000
+ no shutdown
+
+interface Serial0/1/1
+ ip address 10.0.0.30 255.255.255.252
+ no shutdown
+
+router ospf 1
+ network 192.168.6.0 0.0.0.255 area 0
+ network 10.0.0.24 0.0.0.3 area 0
+ network 10.0.0.28 0.0.0.3 area 0
+
+=================================================================
+
+-----------------------------------------------------------------
+R6:
+
+
+enable
+conf t
+hostname Router6
+no ip domain-lookup
+
+interface GigabitEthernet0/0/0
+ ip address 192.168.7.1 255.255.255.0
+ no shutdown
+
+interface Serial0/1/0
+ ip address 10.0.0.9 255.255.255.252
+ clock rate 64000
+ no shutdown
+
+router ospf 1
+ network 192.168.7.0 0.0.0.255 area 0
+ network 10.0.0.8 0.0.0.3 area 0
+
+=================================================================
+ACL:
+
+enable
+conf t
+
+! Enable CEF (required for uRPF)
+ip cef
+
+! Step 1: ACL to control LAN access
+ip access-list extended LAN-OUT-ACL
+ remark PC5 - allow only ping
+ permit icmp host 192.168.7.10 any
+
+ remark PC6 - allow ping, http, https
+ permit icmp host 192.168.7.11 any
+ permit tcp host 192.168.7.11 any eq 80
+ permit tcp host 192.168.7.11 any eq 443
+
+ remark PC10 - allow ping, ftp
+ permit icmp host 192.168.7.15 any
+ permit tcp host 192.168.7.15 any eq 21
+
+ remark Deny everyone else
+ deny ip 192.168.7.0 0.0.0.255 any
+
+ remark Permit other traffic (optional)
+ permit ip any any
+
+! Step 2: WAN-side ACL to block external ping attacks
+ip access-list extended WAN-IN-SECURITY
+ deny icmp any any echo
+ permit ip any any
+
+! Step 3: LAN interface config (connected to Switch4)
+interface GigabitEthernet0/0/0
+ description LAN Interface - PCs 5 to 10
+ ip address 192.168.7.1 255.255.255.0
+ ip verify unicast source reachable-via rx
+ no shutdown
+
+! Step 4: WAN interface config (to Router1)
+interface Serial0/1/0
+ description WAN to Router1
+ ip address 10.0.0.9 255.255.255.252
+ ip access-group WAN-IN-SECURITY in
+ ip access-group LAN-OUT-ACL out
+ clock rate 64000
+ no shutdown
+
+! Step 5: Static default route to upstream
+ip route 0.0.0.0 0.0.0.0 10.0.0.10
+
+! Optional: Enable logging
+logging buffered 51200
+logging console
+
+! Save config
+end
+write memory
+
+
+
+
+
+
+
+-----------------------------------------------------------------
+R7:
+
+
+
+enable
+conf t
+hostname Router7
+no ip domain-lookup
+
+interface Serial0/1/0
+ ip address 10.0.0.2 255.255.255.252
+ no shutdown
+
+interface Serial0/1/1
+ ip address 10.0.0.23 255.255.255.252
+ no shutdown
+
+interface Serial0/2/0
+ ip address 10.0.0.25 255.255.255.252
+ no shutdown
+
+interface Serial0/2/1
+ ip address 10.0.0.7 255.255.255.252
+ no shutdown
+
+router ospf 1
+ network 10.0.0.0 0.0.0.3 area 0
+ network 10.0.0.4 0.0.0.3 area 0
+ network 10.0.0.6 0.0.0.3 area 0
+ network 10.0.0.22 0.0.0.3 area 0
+ network 10.0.0.24 0.0.0.3 area 0
+
+=================================================================
+
+-----------------------------------------------------------------
+R8:
+
+
+enable
+conf t
+hostname Router8
+no ip domain-lookup
+
+interface GigabitEthernet0/0/0
+ ip address 192.168.8.1 255.255.255.0
+ no shutdown
+
+interface Serial0/1/0
+ ip address 10.0.0.29 255.255.255.252
+ clock rate 64000
+ no shutdown
+
+router ospf 1
+ network 192.168.8.0 0.0.0.255 area 0
+ network 10.0.0.28 0.0.0.3 area 0
+
+=================================================================
+
+VPN:
+
+crypto isakmp policy 10
+ encr aes
+ hash sha
+ authentication pre-share
+ group 2
+ lifetime 86400
+
+crypto isakmp key VPN123 address 10.0.0.13
+
+crypto ipsec transform-set VPN-SET esp-aes esp-sha-hmac
+
+crypto map VPN-MAP 10 ipsec-isakmp
+ set peer 10.0.0.13
+ set transform-set VPN-SET
+ match address 100
+
+interface Serial0/1/0
+ crypto map VPN-MAP
+
+access-list 100 permit ip 192.168.8.0 0.0.0.255 192.168.2.0 0.0.0.255
+
+-----------------------------------------------------------------
+Switch8:
+
+enable
+configure terminal
+hostname Switch8
+
+! Secure connection to Router0 (Access port with Port Security)
+interface fa0/3
+ description Connected to Router0 (G0/0/0)
+ switchport mode access
+ switchport port-security
+ switchport port-security maximum 1
+ switchport port-security violation restrict
+ switchport port-security mac-address sticky
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+
+! Uplink to Switch2
+interface fa0/1
+ description Uplink to Switch2 (F0/2)
+ switchport mode trunk
+
+! Uplink to Switch7
+interface fa0/2
+ description Uplink to Switch7 (F0/2)
+ switchport mode trunk
+
+! Shutdown all unused ports
+interface range fa0/4 - 23
+ shutdown
+
+-----------------------------------------------------------------
+Switch7:
+
+enable
+configure terminal
+hostname Switch7
+
+! Connected to PC13 (Secure Access Port)
+interface fa0/1
+ description Connected to PC13
+ switchport mode access
+ switchport port-security
+ switchport port-security maximum 1
+ switchport port-security violation restrict
+ switchport port-security mac-address sticky
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+
+! Uplink to Switch8
+interface fa0/2
+ description Uplink to Switch8 (F0/2)
+ switchport mode trunk
+
+! Shutdown all unused ports
+interface range fa0/3 - 23
+ shutdown
+
+
+
+-----------------------------------------------------------------
+Switch2:
+
+
+enable
+configure terminal
+hostname Switch2
+
+! Connected to PC12 (Secure Access Port)
+interface fa0/1
+ description Connected to PC12
+ switchport mode access
+ switchport port-security
+ switchport port-security maximum 1
+ switchport port-security violation restrict
+ switchport port-security mac-address sticky
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+
+! Uplink to Switch8
+interface fa0/2
+ description Uplink to Switch8 (F0/1)
+ switchport mode trunk
+
+! Shutdown all unused ports
+interface range fa0/3 - 23
+ shutdown
