@@ -238,6 +238,7 @@ interface GigabitEthernet0/0/1
 
 interface Serial0/1/0
  ip address 10.0.0.17 255.255.255.252
+  clock rate 64000
  no shutdown
 
 router ospf 1
@@ -250,93 +251,73 @@ router ospf 1
 
 ZPF:
 
-conf t
-
-! Step 1: Create Security Zones
+! ========== ZONES ==========
 zone security INSIDE
 zone security DMZ
 zone security OUTSIDE
 
-! Step 2: Assign Interfaces to Zones
+! ========== INTERFACE SETUP ==========
 interface GigabitEthernet0/0/1
- description INSIDE Network - PC2, PC3
+ description INSIDE LAN (192.168.5.0/24)
  ip address 192.168.5.1 255.255.255.0
+ ip nat inside
  zone-member security INSIDE
- no shutdown
 
 interface GigabitEthernet0/0/0
- description DMZ Network - Web Server
+ description DMZ (Web Server 192.168.4.20)
  ip address 192.168.4.1 255.255.255.0
  zone-member security DMZ
- no shutdown
 
 interface Serial0/1/0
- description WAN/OUTSIDE - Connected to Router1
+ description OUTSIDE (Link to Router1)
  ip address 10.0.0.17 255.255.255.252
- encapsulation ppp
+ ip nat outside
  zone-member security OUTSIDE
- no shutdown
 
-! Step 3: Class-Maps for Matching Traffic
-class-map type inspect match-any CM_INSIDE_TO_DMZ
- match protocol http
- match protocol https
- match protocol dns
+! ========== NAT ==========
+access-list 101 permit ip 192.168.5.0 0.0.0.255 any
+ip nat inside source list 101 interface Serial0/1/0 overload
+
+! ========== CLASS MAPS ==========
+class-map type inspect match-any CM-IN2OUT
+ match protocol ip
  match protocol icmp
 
-class-map type inspect match-any CM_INSIDE_TO_OUTSIDE
- match protocol http
- match protocol https
- match protocol dns
+class-map type inspect match-any CM-IN2DMZ
+ match protocol ip
  match protocol icmp
 
-class-map type inspect match-any CM_DMZ_TO_INSIDE
- match protocol icmp
+class-map type inspect match-any CM-OUT2DMZ
  match protocol http
  match protocol https
 
-class-map type inspect match-any CM_DMZ_TO_OUTSIDE
- match protocol http
- match protocol https
- match protocol dns
+! ========== POLICY MAPS ==========
+policy-map type inspect PM-IN2OUT
+ class type inspect CM-IN2OUT
+  inspect
 
-! Step 4: Policy-Maps for Actions
-policy-map type inspect PM_INSIDE_TO_DMZ
- class type inspect CM_INSIDE_TO_DMZ
+policy-map type inspect PM-IN2DMZ
+ class type inspect CM-IN2DMZ
+  inspect
+
+policy-map type inspect PM-OUT2DMZ
+ class type inspect CM-OUT2DMZ
   inspect
  class class-default
   drop
 
-policy-map type inspect PM_INSIDE_TO_OUTSIDE
- class type inspect CM_INSIDE_TO_OUTSIDE
-  inspect
- class class-default
-  drop
+! ========== ZONE-PAIRS ==========
+zone-pair security ZP-IN2OUT source INSIDE destination OUTSIDE
+ service-policy type inspect PM-IN2OUT
 
-policy-map type inspect PM_DMZ_TO_INSIDE
- class type inspect CM_DMZ_TO_INSIDE
-  drop
- class class-default
-  drop
+zone-pair security ZP-IN2DMZ source INSIDE destination DMZ
+ service-policy type inspect PM-IN2DMZ
 
-policy-map type inspect PM_DMZ_TO_OUTSIDE
- class type inspect CM_DMZ_TO_OUTSIDE
-  inspect
- class class-default
-  drop
+zone-pair security ZP-OUT2DMZ source OUTSIDE destination DMZ
+ service-policy type inspect PM-OUT2DMZ
 
-! Step 5: Zone-Pairs to Apply Policies
-zone-pair security ZP_INSIDE_TO_DMZ source INSIDE destination DMZ
- service-policy type inspect PM_INSIDE_TO_DMZ
-
-zone-pair security ZP_INSIDE_TO_OUTSIDE source INSIDE destination OUTSIDE
- service-policy type inspect PM_INSIDE_TO_OUTSIDE
-
-zone-pair security ZP_DMZ_TO_INSIDE source DMZ destination INSIDE
- service-policy type inspect PM_DMZ_TO_INSIDE
-
-zone-pair security ZP_DMZ_TO_OUTSIDE source DMZ destination OUTSIDE
- service-policy type inspect PM_DMZ_TO_OUTSIDE
+! ========== DEFAULT ROUTE ==========
+ip route 0.0.0.0 0.0.0.0 10.0.0.18
 
 
 -----------------------------------------------------------------
@@ -626,3 +607,132 @@ interface fa0/2
 ! Shutdown all unused ports
 interface range fa0/3 - 23
  shutdown
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+conf t
+
+! ----------------------------
+! Step 1: Interface Configurations
+! ----------------------------
+interface GigabitEthernet0/0/0
+ description DMZ - Web Server
+ ip address 192.168.4.1 255.255.255.0
+ zone-member security DMZ
+ no shutdown
+
+interface GigabitEthernet0/0/1
+ description INSIDE - PC2, PC3
+ ip address 192.168.5.1 255.255.255.0
+ zone-member security INSIDE
+ no shutdown
+
+interface Serial0/1/0
+ description OUTSIDE - Link to Router1
+ ip address 10.0.0.17 255.255.255.252
+ encapsulation ppp
+ clock rate 64000
+ zone-member security OUTSIDE
+ no shutdown
+
+! ----------------------------
+! Step 2: Static Default Route to Outside
+! ----------------------------
+ip route 0.0.0.0 0.0.0.0 10.0.0.18
+
+! ----------------------------
+! Step 3: Define Security Zones
+! ----------------------------
+zone security INSIDE
+zone security DMZ
+zone security OUTSIDE
+
+! ----------------------------
+! Step 4: Class Maps
+! ----------------------------
+class-map type inspect match-any CM_INSIDE_TO_DMZ
+ match protocol http
+ match protocol https
+ match protocol dns
+ match protocol icmp
+
+class-map type inspect match-any CM_INSIDE_TO_OUTSIDE
+ match protocol http
+ match protocol https
+ match protocol dns
+ match protocol icmp
+
+class-map type inspect match-any CM_DMZ_TO_INSIDE
+ match protocol icmp
+ match protocol http
+ match protocol https
+
+class-map type inspect match-any CM_DMZ_TO_OUTSIDE
+ match protocol http
+ match protocol https
+ match protocol dns
+
+! ----------------------------
+! Step 5: Policy Maps
+! ----------------------------
+policy-map type inspect PM_INSIDE_TO_DMZ
+ class type inspect CM_INSIDE_TO_DMZ
+  inspect
+ class class-default
+  drop
+
+policy-map type inspect PM_INSIDE_TO_OUTSIDE
+ class type inspect CM_INSIDE_TO_OUTSIDE
+  inspect
+ class class-default
+  drop
+
+policy-map type inspect PM_DMZ_TO_INSIDE
+ class type inspect CM_DMZ_TO_INSIDE
+  drop
+ class class-default
+  drop
+
+policy-map type inspect PM_DMZ_TO_OUTSIDE
+ class type inspect CM_DMZ_TO_OUTSIDE
+  inspect
+ class class-default
+  drop
+
+! ----------------------------
+! Step 6: Zone-Pairs
+! ----------------------------
+zone-pair security ZP_INSIDE_TO_DMZ source INSIDE destination DMZ
+ service-policy type inspect PM_INSIDE_TO_DMZ
+
+zone-pair security ZP_INSIDE_TO_OUTSIDE source INSIDE destination OUTSIDE
+ service-policy type inspect PM_INSIDE_TO_OUTSIDE
+
+zone-pair security ZP_DMZ_TO_INSIDE source DMZ destination INSIDE
+ service-policy type inspect PM_DMZ_TO_INSIDE
+
+zone-pair security ZP_DMZ_TO_OUTSIDE source DMZ destination OUTSIDE
+ service-policy type inspect PM_DMZ_TO_OUTSIDE
+
+end
+write memory
