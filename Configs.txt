@@ -736,3 +736,35 @@ zone-pair security ZP_DMZ_TO_OUTSIDE source DMZ destination OUTSIDE
 
 end
 write memory
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+vlan 20
+ name Switch2_VLAN
+vlan 30
+ name Switch7_VLAN
+
+interface fa0/2  
+ switchport mode trunk
+ switchport trunk allowed vlan 30
+
+interface fa0/3  
+ switchport mode trunk
+ switchport trunk allowed vlan 20
+
+! You can route or bridge as needed on Switch8
