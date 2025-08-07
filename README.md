@@ -1,5 +1,6 @@
 # Enterprise Network Security Infrastructure — Final Project (NTI Network Security Internship)
-<image src="https://github.com/amnh30/Enterprise_Network_Security_Infrastructure/blob/main/Redesigned%20Network%20Security%20Architecture.png"/>
+![Project Banner](Redesigned%20Network%20Security%20Architecture.png)
+
 ## Overview
 
 This repository contains the configuration and documentation for a simulated enterprise-grade network built as the final project for the **Network Security Internship (NTI)**. The design demonstrates layered security, routing resilience, centralized authentication, secure site-to-site tunnelling, logging, and time synchronization. The environment was implemented and tested using Cisco IOS-style configuration (Packet Tracer compatible).
